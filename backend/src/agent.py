@@ -12,8 +12,10 @@ from livekit.agents import (
     inference,
     tokenize,
     room_io,
+    function_tool,
+    RunContext,
 )
-from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
+from livekit.plugins import murf, silero, deepgram, noise_cancellation, cerebras
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 logger = logging.getLogger("agent")
@@ -22,30 +24,52 @@ load_dotenv(".env.local")
 
 # Change this prompt to change what your voice agent does.
 # See README.md for example prompts (customer support, language tutor, receptionist).
-SYSTEM_PROMPT = """You are a friendly and efficient customer support agent for a tech company. Help users with account issues, billing questions, and product troubleshooting. Be concise, empathetic, and solution-oriented. If you don't know something, say so honestly and offer to escalate. Your responses are concise and without complex formatting, emojis, or symbols."""
-
+SYSTEM_PROMPT = """You are a financial literacy assistant helping Indian users understand government schemes, banking basics, and fraud awareness. Speak in simple, clear language (mix Hindi/English if the user does). Do not explain a scheme's eligibility rules from memory — always call check_scheme_eligibility. Do not judge a suspicious message as safe or a scam from memory — always call check_fraud_signals. Keep responses concise, no jargon, no complex formatting or emojis."""
 
 class Assistant(Agent):
     def __init__(self) -> None:
         super().__init__(instructions=SYSTEM_PROMPT)
 
-    # To add tools, use the @function_tool decorator.
-    # Here's an example that adds a simple weather tool.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
-    # @function_tool
-    # async def lookup_weather(self, context: RunContext, location: str):
-    #     """Use this tool to look up current weather information in the given location.
-    #
-    #     If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
-    #
-    #     Args:
-    #         location: The location to look up weather information for (e.g. city name)
-    #     """
-    #
-    #     logger.info(f"Looking up weather for {location}")
-    #
-    #     return "sunny with a temperature of 70 degrees."
+    @function_tool
+    async def check_scheme_eligibility(
+        self,
+        context: RunContext,
+        scheme_name: str,
+        age: int,
+        occupation: str,
+        annual_income: int,
+        land_owned_acres: float = 0,
+    ):
+        """Check if a user is eligible for a government scheme based on their profile.
 
+        Args:
+            scheme_name: Name of scheme (e.g. PM-KISAN, PMJDY, Mudra, PMSBY, PMJJBY)
+            age: User's age in years
+            occupation: User's occupation (e.g. farmer, laborer, self-employed)
+            annual_income: Annual household income in INR
+            land_owned_acres: Land owned in acres (0 if none/not applicable)
+        """
+        logger.info(f"Checking eligibility: {scheme_name} for age={age}")
+        # TODO: replace with real rule lookup / RAG-retrieved scheme rules
+        return f"Checked {scheme_name} eligibility for profile: age {age}, {occupation}, income {annual_income}, land {land_owned_acres} acres."
+
+    @function_tool
+    async def check_fraud_signals(self, context: RunContext, message_text: str):
+        """Analyze a message (SMS/call transcript) for common fraud red flags.
+
+        Args:
+            message_text: The suspicious message the user read out or described
+        """
+        logger.info("Checking fraud signals")
+        red_flags = []
+        lowered = message_text.lower()
+        if "otp" in lowered:
+            red_flags.append("Asks for OTP — banks never ask for this")
+        if any(w in lowered for w in ["urgent", "immediately", "blocked", "suspend"]):
+            red_flags.append("Creates false urgency")
+        if any(w in lowered for w in ["click", "link", "verify now"]):
+            red_flags.append("Pushes a link/click action")
+        return {"red_flags": red_flags, "likely_fraud": len(red_flags) > 0}
 
 server = AgentServer()
 
@@ -72,8 +96,8 @@ async def my_agent(ctx: JobContext):
         stt=deepgram.STT(model="nova-3"),
         # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
         # See all available models at https://docs.livekit.io/agents/models/llm/
-        llm=google.LLM(
-                model="gemini-3.5-flash-lite",
+        llm=cerebras.LLM(
+            model="gemma-4-31b",  # or "gpt-oss-120b" for stronger reasoning
             ),
         # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
         # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
