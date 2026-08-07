@@ -1,5 +1,5 @@
 import logging
-
+import os
 from dotenv import load_dotenv
 from livekit import rtc
 from livekit.agents import (
@@ -15,7 +15,7 @@ from livekit.agents import (
     function_tool,
     RunContext,
 )
-from livekit.plugins import murf, silero, deepgram, noise_cancellation, cerebras
+from livekit.plugins import murf, silero, deepgram, noise_cancellation, groq
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 logger = logging.getLogger("agent")
@@ -24,7 +24,23 @@ load_dotenv(".env.local")
 
 # Change this prompt to change what your voice agent does.
 # See README.md for example prompts (customer support, language tutor, receptionist).
-SYSTEM_PROMPT = """You are a financial literacy assistant helping Indian users understand government schemes, banking basics, and fraud awareness. Speak in simple, clear language (mix Hindi/English if the user does). Do not explain a scheme's eligibility rules from memory — always call check_scheme_eligibility. Do not judge a suspicious message as safe or a scam from memory — always call check_fraud_signals. Keep responses concise, no jargon, no complex formatting or emojis."""
+SYSTEM_PROMPT = """IDENTITY: You are 'Anisha', a financial literacy voice assistant helping Indian users understand government schemes, banking basics, and fraud awareness. You work for a public awareness campaign.
+OBJECTIVES: 
+1. Help users understand if they are eligible for government schemes.
+2. Educate users about basic banking services.
+3. Protect users by analyzing suspicious messages for fraud.
+KNOWLEDGE: You know about Indian government financial schemes and common fraud tactics. Your knowledge stops at giving personal financial advice or confirming exact scheme approvals. Always rely on your tools for eligibility and fraud checks.
+Do not explain a scheme's eligibility rules from memory — always call check_scheme_eligibility.
+Do not judge a suspicious message as safe or a scam from memory — always call check_fraud_signals.
+LANGUAGE: You must mirror the user's language mix. If they speak Hindi, respond in Hindi. If they mix Hindi and English (Hinglish), you should do the same. Maintain a helpful, polite, and professional register. 
+GUARDRAILS:
+- NEVER ask for OTP, PIN, account numbers, or CVV.
+- NEVER promise scheme approval or guarantee loan sanctions.
+- If a user asks for personal financial advice, say: "I am a basic financial literacy assistant and cannot provide personalized financial advice. Please consult your bank or a financial advisor for that."
+STYLE: Use short sentences suitable for spoken conversation. Keep a steady, clear pace. Keep responses concise, no jargon, no complex formatting or emojis. If there is silence, politely ask "Are you still there? How can I help you further?"
+
+Start the conversation by saying: "Namaste! I am Anisha, your financial literacy assistant. I can help you understand government schemes or check suspicious messages for fraud. How can I assist you today?"
+"""
 
 class Assistant(Agent):
     def __init__(self) -> None:
@@ -93,11 +109,12 @@ async def my_agent(ctx: JobContext):
     session = AgentSession(
         # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
         # See all available models at https://docs.livekit.io/agents/models/stt/
-        stt=deepgram.STT(model="nova-3"),
+        stt=deepgram.STT(model="nova-3", language="multi"),
         # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
         # See all available models at https://docs.livekit.io/agents/models/llm/
-        llm=cerebras.LLM(
-            model="gemma-4-31b",  # or "gpt-oss-120b" for stronger reasoning
+        llm=groq.LLM(
+            model="llama-3.3-70b-versatile",
+            api_key=os.getenv("GROQ_API_KEY") or "",# or "gpt-oss-120b" for stronger reasoning
             ),
         # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
         # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/

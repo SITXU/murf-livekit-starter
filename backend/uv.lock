@@ -16,6 +16,7 @@ dependencies = [
     { name = "livekit-agents", extra = ["deepgram", "google", "silero", "turn-detector"] },
     { name = "livekit-murf" },
     { name = "livekit-plugins-cerebras" },
+    { name = "livekit-plugins-groq" },
     { name = "livekit-plugins-noise-cancellation" },
     { name = "python-dotenv" },
 ]
@@ -32,6 +33,7 @@ requires-dist = [
     { name = "livekit-agents", extras = ["deepgram", "google", "silero", "turn-detector"], specifier = "~=1.4" },
     { name = "livekit-murf", specifier = ">=0.1.1" },
     { name = "livekit-plugins-cerebras", specifier = ">=1.6.8" },
+    { name = "livekit-plugins-groq", specifier = ">=1.6.8" },
     { name = "livekit-plugins-noise-cancellation", specifier = "~=0.2" },
     { name = "python-dotenv" },
 ]
@@ -1425,6 +1427,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/6b/16/b47600c39d4110fe286b4e0e3fee2f83c26caf08c796bbb642389e085b71/livekit_plugins_google-1.6.8.tar.gz", hash = "sha256:8645600a4c626cf953e92515cc82c6b9a3ad0be57b7b58ab6106677ec16c4728", size = 48978, upload-time = "2026-08-03T17:12:09.565Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/68/88/03e0ead5726bd117d55482996a77bef08a164b777ea7f23672cf3a88cb66/livekit_plugins_google-1.6.8-py3-none-any.whl", hash = "sha256:61252e2d9290a76453b1dfb5e2dfd29fab9c4d35f54d17b80bb91899b1131d6e", size = 56720, upload-time = "2026-08-03T17:12:08.425Z" },
+]
+
+[[package]]
+name = "livekit-plugins-groq"
+version = "1.6.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "livekit" },
+    { name = "livekit-agents", extra = ["codecs", "openai"] },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/79/1b/3afe32f107b21fcb2f5933c4a216655b2e781078a49e206921548665f9b4/livekit_plugins_groq-1.6.8.tar.gz", hash = "sha256:152f7afb2ac53ee782717e5c5fd621dcecc76509604dae2ee9fcc3dec8dc4d4f", size = 6133, upload-time = "2026-08-03T17:12:18.707Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/65/36c0f2a75280ceca12f3aaaa850c8e30c227cb262e4c457490cbab6211e7/livekit_plugins_groq-1.6.8-py3-none-any.whl", hash = "sha256:7173865ccbbff2fc56616d7fd13199a66fb949bdf58e7bb64f2fd1d44e38d966", size = 7320, upload-time = "2026-08-03T17:12:17.512Z" },
 ]
 
 [[package]]
