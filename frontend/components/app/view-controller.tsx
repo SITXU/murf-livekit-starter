@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import { AnimatePresence, motion } from 'motion/react';
 import { useSessionContext } from '@livekit/components-react';
@@ -12,20 +13,13 @@ const MotionSessionView = motion.create(AgentSessionView_01);
 
 const VIEW_MOTION_PROPS = {
   variants: {
-    visible: {
-      opacity: 1,
-    },
-    hidden: {
-      opacity: 0,
-    },
+    visible: { opacity: 1 },
+    hidden: { opacity: 0 },
   },
   initial: 'hidden',
   animate: 'visible',
   exit: 'hidden',
-  transition: {
-    duration: 0.5,
-    ease: 'linear',
-  },
+  transition: { duration: 0.5, ease: 'linear' },
 };
 
 interface ViewControllerProps {
@@ -36,6 +30,25 @@ export function ViewController({ appConfig }: ViewControllerProps) {
   const { isConnected, start } = useSessionContext();
   const { resolvedTheme } = useTheme();
 
+  const [hasDisconnected, setHasDisconnected] = useState(false);
+  const [microphoneError, setMicrophoneError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isConnected) {
+      setHasDisconnected(true);
+      setMicrophoneError(null);
+    }
+  }, [isConnected]);
+
+  const handleStartCall = async () => {
+    try {
+      setMicrophoneError(null);
+      await start();
+    } catch (e: any) {
+      setMicrophoneError(e.message || "Could not access microphone.");
+    }
+  };
+
   return (
     <AnimatePresence mode="wait">
       {/* Welcome view */}
@@ -44,7 +57,9 @@ export function ViewController({ appConfig }: ViewControllerProps) {
           key="welcome"
           {...VIEW_MOTION_PROPS}
           startButtonText={appConfig.startButtonText}
-          onStartCall={start}
+          onStartCall={handleStartCall}
+          hasDisconnected={hasDisconnected}
+          microphoneError={microphoneError}
         />
       )}
       {/* Session view */}

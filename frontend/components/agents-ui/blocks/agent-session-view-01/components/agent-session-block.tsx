@@ -241,22 +241,21 @@ export function AgentSessionView_01({
         {...BOTTOM_VIEW_MOTION_PROPS}
         className="absolute inset-x-3 bottom-0 z-50 md:inset-x-12"
       >
-        {/* Pre-connect message */}
-        {isPreConnectBufferEnabled && (
-          <AnimatePresence>
-            {messages.length === 0 && (
-              <MotionMessage
-                key="pre-connect-message"
-                duration={2}
-                aria-hidden={messages.length > 0}
-                {...SHIMMER_MOTION_PROPS}
-                className="pointer-events-none mx-auto block w-full max-w-2xl pb-4 text-center text-sm font-semibold"
-              >
-                {preConnectMessage}
-              </MotionMessage>
-            )}
-          </AnimatePresence>
-        )}
+        {/* Agent State Indicator */}
+        <AnimatePresence>
+          <MotionMessage
+            key="agent-state-message"
+            duration={2}
+            {...SHIMMER_MOTION_PROPS}
+            className="pointer-events-none mx-auto block w-full max-w-2xl pb-4 text-center text-sm font-semibold text-[var(--accent)]"
+          >
+            {agentState === 'connecting' ? 'Connecting to Anisha... Please wait' : 
+             agentState === 'listening' ? 'Anisha is listening to you' :
+             agentState === 'speaking' ? 'Anisha is speaking' : 
+             agentState === 'thinking' ? 'Anisha is thinking...' :
+             'Connected to Anisha'}
+          </MotionMessage>
+        </AnimatePresence>
         <div className="bg-background relative mx-auto max-w-2xl pb-3 md:pb-12">
           <Fade bottom className="absolute inset-x-0 top-0 h-4 -translate-y-full" />
           <AgentControlBar
