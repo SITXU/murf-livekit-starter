@@ -17,18 +17,24 @@ from livekit.agents import (
 )
 from livekit.plugins import murf, silero, deepgram, noise_cancellation, groq
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
+import json
+from db import init_db, get_user, save_user
 
 logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
 
-# Change this prompt to change what your voice agent does.
-# See README.md for example prompts (customer support, language tutor, receptionist).
-SYSTEM_PROMPT = """IDENTITY: You are 'Anisha', a financial literacy voice assistant helping Indian users understand government schemes, banking basics, and fraud awareness. You work for a public awareness campaign.
+# Initialize database
+init_db()
+
+def get_system_prompt(user_id: str):
+    return f"""IDENTITY: You are 'Anisha', a financial literacy voice assistant helping Indian users understand government schemes, banking basics, and fraud awareness. You work for a public awareness campaign.
 OBJECTIVES: 
 1. Help users understand if they are eligible for government schemes.
 2. Educate users about basic banking services.
 3. Protect users by analyzing suspicious messages for fraud.
+4. Remember users across calls to provide personalized help.
+
 KNOWLEDGE: You know about Indian government financial schemes and common fraud tactics. Your knowledge stops at giving personal financial advice or confirming exact scheme approvals. Always rely on your tools for eligibility and fraud checks.
 Do not explain a scheme's eligibility rules from memory — always call check_scheme_eligibility.
 Do not judge a suspicious message as safe or a scam from memory — always call check_fraud_signals.
@@ -36,15 +42,51 @@ LANGUAGE: You must mirror the user's language mix. If they speak Hindi, respond 
 GUARDRAILS:
 - NEVER ask for OTP, PIN, account numbers, or CVV.
 - NEVER promise scheme approval or guarantee loan sanctions.
+- HARD RULE: Before you save any information about the user, you MUST ask for their permission. Tell the caller you are going to remember this, and if they say no, do not save it.
 - If a user asks for personal financial advice, say: "I am a basic financial literacy assistant and cannot provide personalized financial advice. Please consult your bank or a financial advisor for that."
 STYLE: Use short sentences suitable for spoken conversation. Keep a steady, clear pace. Keep responses concise, no jargon, no complex formatting or emojis. If there is silence, politely ask "Are you still there? How can I help you further?"
 
-Start the conversation by saying: "Namaste! I am Anisha, your financial literacy assistant. I can help you understand government schemes or check suspicious messages for fraud. How can I assist you today?"
+The current caller's user_id is: '{user_id}'.
+At the start of the call, ALWAYS call lookup_caller with this user_id to check if they are a returning user. 
+- If they are a returning user, greet them by name and mention what you discussed last time based on the facts you retrieve.
+- If they are a new user, start the conversation by saying: "Namaste! I am Anisha, your financial literacy assistant. I can help you understand government schemes or check suspicious messages for fraud. How can I assist you today?"
+- During the call, if you learn their name, preferred language, or facts about their eligibility/interests, ASK for permission to save this data. If they agree, call save_caller_info.
 """
 
 class Assistant(Agent):
-    def __init__(self) -> None:
-        super().__init__(instructions=SYSTEM_PROMPT)
+    def __init__(self, user_id: str) -> None:
+        super().__init__(instructions=get_system_prompt(user_id))
+
+    @function_tool
+    async def lookup_caller(self, context: RunContext, user_id: str):
+        """Look up information about a returning caller.
+        
+        Args:
+            user_id: The unique ID or phone number of the caller.
+        """
+        logger.info(f"Looking up caller: {user_id}")
+        user = get_user(user_id)
+        if user:
+            return f"Found caller: {json.dumps(user)}"
+        return "Caller not found. This is a new user."
+
+    @function_tool
+    async def save_caller_info(self, context: RunContext, user_id: str, name: str, language_preference: str, facts: str):
+        """Save information about a caller to remember them for next time.
+        
+        Args:
+            user_id: The unique ID or phone number of the caller.
+            name: The caller's name.
+            language_preference: The caller's preferred language.
+            facts: A JSON string containing key facts to remember (e.g., {"schemes_checked": "PM-KISAN"}).
+        """
+        logger.info(f"Saving info for caller: {user_id}")
+        try:
+            facts_dict = json.loads(facts)
+        except:
+            facts_dict = {"notes": facts}
+        save_user(user_id, name, language_preference, facts_dict)
+        return "Information saved successfully."
 
     @function_tool
     async def check_scheme_eligibility(
@@ -105,6 +147,12 @@ async def my_agent(ctx: JobContext):
         "room": ctx.room.name,
     }
 
+    # Join the room and connect to the user FIRST to get participant identity
+    await ctx.connect()
+    
+    participant = next(iter(ctx.room.remote_participants.values()), None)
+    user_id = participant.identity if participant else "unknown_user"
+
     # Set up a voice AI pipeline using Murf Falcon, Gemini, Deepgram, and the LiveKit turn detector
     session = AgentSession(
         # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
@@ -154,7 +202,7 @@ async def my_agent(ctx: JobContext):
 
     # Start the session, which initializes the voice pipeline and warms up the models
     await session.start(
-        agent=Assistant(),
+        agent=Assistant(user_id=user_id),
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
@@ -167,9 +215,6 @@ async def my_agent(ctx: JobContext):
             ),
         ),
     )
-
-    # Join the room and connect to the user
-    await ctx.connect()
 
 
 if __name__ == "__main__":

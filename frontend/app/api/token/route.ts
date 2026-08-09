@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { AccessToken, type AccessTokenOptions, type VideoGrant } from 'livekit-server-sdk';
 import { RoomConfiguration } from '@livekit/protocol';
 
@@ -44,9 +45,17 @@ export async function POST(req: Request) {
       );
     }
       
-    // Generate participant token
+    // Check for existing identity cookie or generate a new one
+    const cookieStore = await cookies();
+    let participantIdentity = cookieStore.get('voice_agent_user_id')?.value;
+    let isNewIdentity = false;
+    
+    if (!participantIdentity) {
+      participantIdentity = `voice_assistant_user_${Math.floor(Math.random() * 10_000)}`;
+      isNewIdentity = true;
+    }
+
     const participantName = 'user';
-    const participantIdentity = `voice_assistant_user_${Math.floor(Math.random() * 10_000)}`;
     const roomName = `voice_assistant_room_${Math.floor(Math.random() * 10_000)}`;
 
     const participantToken = await createParticipantToken(
@@ -62,9 +71,15 @@ export async function POST(req: Request) {
       participantName,
       participantToken,
     };
+    
     const headers = new Headers({
       'Cache-Control': 'no-store',
     });
+    
+    if (isNewIdentity) {
+      headers.append('Set-Cookie', `voice_agent_user_id=${participantIdentity}; Path=/; Max-Age=2592000`);
+    }
+    
     return NextResponse.json(data, { headers });
   } catch (error) {
     if (error instanceof Error) {
