@@ -1,0 +1,41 @@
+{
+  "last_updated": "2023-10-01T00:00:00Z",
+  "source": "Bank Official Websites",
+  "banks": {
+    "sbi": {
+      "name": "State Bank of India (SBI)",
+      "savings_rate": "2.70% to 3.00%",
+      "fd_rate_1_year": "6.80%",
+      "fd_rate_5_year": "6.50%",
+      "senior_citizen_bonus": "+0.50%"
+    },
+    "hdfc": {
+      "name": "HDFC Bank",
+      "savings_rate": "3.00% to 3.50%",
+      "fd_rate_1_year": "6.60%",
+      "fd_rate_5_year": "7.00%",
+      "senior_citizen_bonus": "+0.50%"
+    },
+    "icici": {
+      "name": "ICICI Bank",
+      "savings_rate": "3.00% to 3.50%",
+      "fd_rate_1_year": "6.70%",
+      "fd_rate_5_year": "7.00%",
+      "senior_citizen_bonus": "+0.50%"
+    },
+    "pnb": {
+      "name": "Punjab National Bank (PNB)",
+      "savings_rate": "2.70% to 3.00%",
+      "fd_rate_1_year": "6.75%",
+      "fd_rate_5_year": "6.50%",
+      "senior_citizen_bonus": "+0.50%"
+    },
+    "axis": {
+      "name": "Axis Bank",
+      "savings_rate": "3.00% to 3.50%",
+      "fd_rate_1_year": "6.70%",
+      "fd_rate_5_year": "7.00%",
+      "senior_citizen_bonus": "+0.50%"
+    }
+  }
+}

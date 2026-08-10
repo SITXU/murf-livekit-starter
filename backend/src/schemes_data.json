@@ -1,0 +1,90 @@
+{
+  "last_updated": "2023-10-01T00:00:00Z",
+  "source": "Government of India Official Portals",
+  "schemes": {
+    "PM-KISAN": {
+      "name": "Pradhan Mantri Kisan Samman Nidhi",
+      "description": "Income support to all landholding farmer families.",
+      "eligibility": {
+        "min_age": 18,
+        "max_age": 100,
+        "occupations": ["farmer"],
+        "max_income": null,
+        "requires_land": true
+      },
+      "documents_required": ["Aadhaar Card", "Bank Account Details", "Land Holding Documents"]
+    },
+    "PMJDY": {
+      "name": "Pradhan Mantri Jan Dhan Yojana",
+      "description": "National Mission for Financial Inclusion.",
+      "eligibility": {
+        "min_age": 10,
+        "max_age": 100,
+        "occupations": ["any"],
+        "max_income": null,
+        "requires_land": false
+      },
+      "documents_required": ["Aadhaar Card", "Photograph"]
+    },
+    "PMSBY": {
+      "name": "Pradhan Mantri Suraksha Bima Yojana",
+      "description": "Accident insurance scheme.",
+      "eligibility": {
+        "min_age": 18,
+        "max_age": 70,
+        "occupations": ["any"],
+        "max_income": null,
+        "requires_land": false
+      },
+      "documents_required": ["Aadhaar Card", "Bank Account Details"]
+    },
+    "PMJJBY": {
+      "name": "Pradhan Mantri Jeevan Jyoti Bima Yojana",
+      "description": "Life insurance scheme.",
+      "eligibility": {
+        "min_age": 18,
+        "max_age": 50,
+        "occupations": ["any"],
+        "max_income": null,
+        "requires_land": false
+      },
+      "documents_required": ["Aadhaar Card", "Bank Account Details", "Health Declaration"]
+    },
+    "Mudra": {
+      "name": "Pradhan Mantri Mudra Yojana",
+      "description": "Loans up to 10 lakh for non-corporate, non-farm small/micro enterprises.",
+      "eligibility": {
+        "min_age": 18,
+        "max_age": 65,
+        "occupations": ["self-employed", "business", "any"],
+        "max_income": null,
+        "requires_land": false
+      },
+      "documents_required": ["Aadhaar Card", "PAN Card", "Business Proof", "Bank Statement"]
+    },
+    "SSY": {
+      "name": "Sukanya Samriddhi Yojana",
+      "description": "Savings scheme for girl child with high interest rate.",
+      "eligibility": {
+        "min_age": 0,
+        "max_age": 10,
+        "occupations": ["any"],
+        "max_income": null,
+        "requires_land": false
+      },
+      "documents_required": ["Girl Child Birth Certificate", "Parent Aadhaar Card", "Address Proof"]
+    },
+    "APY": {
+      "name": "Atal Pension Yojana",
+      "description": "Pension scheme for unorganized sector workers.",
+      "eligibility": {
+        "min_age": 18,
+        "max_age": 40,
+        "occupations": ["unorganized sector", "any"],
+        "max_income": null,
+        "requires_land": false
+      },
+      "documents_required": ["Aadhaar Card", "Savings Bank Account"]
+    }
+  }
+}

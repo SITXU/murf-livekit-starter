@@ -273,6 +273,23 @@ For deeper documentation on each part, see:
 
 ---
 
+## 10 Days of Voice Agents - Day 5 Submission
+
+For Day 5, this Financial Services agent includes two data tools, meeting the requirement to build at least one function call fetching real domain data:
+
+1. **Exchange Rate Tool (`check_exchange_rate`)**:
+   - **Real API Data**: Fetches real-time, live currency exchange rates (e.g., USD to INR) using the open **Frankfurter API** (`api.frankfurter.app`).
+   - **Use Case**: Extremely relevant for Indian users receiving remittances from abroad, which fits perfectly into Anisha's role as a financial literacy assistant.
+
+2. **Scheme Eligibility Tool (`check_scheme_eligibility`)**:
+   - **Local Dataset**: Since real-time APIs for all government schemes without auth are extremely rare/non-existent, we created a comprehensive local JSON dataset of popular schemes (PM-KISAN, PMJDY, Mudra, etc.).
+   
+**Key Day 5 Features Covered:**
+- **Timestamping**: Both tools respond with their "Data source" and the date the data is from, so the user knows how current it is.
+- **Graceful Failure**: Both tools use `try/except` blocks (and the scheme tool simulates a network delay). If the external API times out or returns an error, the agent gracefully tells the user that the external financial service is currently experiencing issues instead of crashing or inventing an answer.
+
+---
+
 ## License
 
 MIT

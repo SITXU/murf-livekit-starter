@@ -33,12 +33,16 @@ OBJECTIVES:
 1. Help users understand if they are eligible for government schemes.
 2. Educate users about basic banking services.
 3. Protect users by analyzing suspicious messages for fraud.
-4. Remember users across calls to provide personalized help.
+4. Provide real-time currency exchange rates for users receiving remittances.
+5. Provide latest bank interest rates for savings and fixed deposits.
+6. Remember users across calls to provide personalized help.
 
-KNOWLEDGE: You know about Indian government financial schemes and common fraud tactics. Your knowledge stops at giving personal financial advice or confirming exact scheme approvals. Always rely on your tools for eligibility and fraud checks.
+KNOWLEDGE: You know about Indian government financial schemes and common fraud tactics. Your knowledge stops at giving personal financial advice or confirming exact scheme approvals. Always rely on your tools for eligibility, fraud checks, exchange rates, and bank interest rates.
 Do not explain a scheme's eligibility rules from memory — always call check_scheme_eligibility.
 Do not judge a suspicious message as safe or a scam from memory — always call check_fraud_signals.
-LANGUAGE: You must mirror the user's language mix. If they speak Hindi, respond in Hindi. If they mix Hindi and English (Hinglish), you should do the same. Maintain a helpful, polite, and professional register. 
+Do not invent exchange rates — always call check_exchange_rate.
+Do not invent bank interest rates — always call check_bank_interest_rate.
+LANGUAGE & SCRIPT: You must mirror the user's language mix. Maintain a helpful, polite, and professional register. Always write every language in its own native script. Hindi → Devanagari (नमस्ते), never romanized (never "namaste"). Same rule for all non-English languages.
 GUARDRAILS:
 - NEVER ask for OTP, PIN, account numbers, or CVV.
 - NEVER promise scheme approval or guarantee loan sanctions.
@@ -103,13 +107,76 @@ class Assistant(Agent):
         Args:
             scheme_name: Name of scheme (e.g. PM-KISAN, PMJDY, Mudra, PMSBY, PMJJBY)
             age: User's age in years
-            occupation: User's occupation (e.g. farmer, laborer, self-employed)
+            occupation: User's occupation (e.g. farmer, laborer, self-employed, any)
             annual_income: Annual household income in INR
             land_owned_acres: Land owned in acres (0 if none/not applicable)
         """
         logger.info(f"Checking eligibility: {scheme_name} for age={age}")
-        # TODO: replace with real rule lookup / RAG-retrieved scheme rules
-        return f"Checked {scheme_name} eligibility for profile: age {age}, {occupation}, income {annual_income}, land {land_owned_acres} acres."
+        import asyncio
+        import os
+        
+        try:
+            # Simulate a network call to an external scheme database
+            await asyncio.sleep(0.5)
+            
+            # Read from our local hand-built dataset
+            file_path = os.path.join(os.path.dirname(__file__), "schemes_data.json")
+            if not os.path.exists(file_path):
+                raise FileNotFoundError("Scheme database file not found")
+                
+            with open(file_path, "r") as f:
+                data = json.load(f)
+                
+            last_updated = data.get("last_updated", "unknown date")
+            schemes = data.get("schemes", {})
+            
+            # Find closest scheme match
+            scheme_key = None
+            for key in schemes.keys():
+                if key.lower() in scheme_name.lower() or scheme_name.lower() in key.lower():
+                    scheme_key = key
+                    break
+            
+            if not scheme_key:
+                return f"Sorry, I couldn't find the scheme '{scheme_name}' in our database. Data was last updated on {last_updated}. Please verify the scheme name."
+                
+            scheme = schemes[scheme_key]
+            eligibility = scheme["eligibility"]
+            
+            # Check eligibility rules
+            reasons = []
+            if eligibility["min_age"] and age < eligibility["min_age"]:
+                reasons.append(f"Minimum age is {eligibility['min_age']}, but user is {age}.")
+            if eligibility["max_age"] and age > eligibility["max_age"]:
+                reasons.append(f"Maximum age is {eligibility['max_age']}, but user is {age}.")
+            
+            if "any" not in eligibility["occupations"]:
+                is_valid_occ = any(occ in occupation.lower() for occ in eligibility["occupations"])
+                if not is_valid_occ:
+                    reasons.append(f"Occupation must be related to: {', '.join(eligibility['occupations'])}.")
+            
+            if eligibility["requires_land"] and land_owned_acres <= 0:
+                reasons.append("This scheme requires the applicant to own land.")
+                
+            if reasons:
+                status = "Not Eligible"
+                reason_str = " ".join(reasons)
+            else:
+                status = "Eligible"
+                reason_str = "All basic criteria met based on the information provided."
+                
+            docs = ", ".join(scheme["documents_required"])
+            
+            return (
+                f"Data source: {data.get('source', 'System')} as of {last_updated}. "
+                f"Result: {status}. "
+                f"Reason: {reason_str} "
+                f"If eligible, required documents: {docs}."
+            )
+            
+        except Exception as e:
+            logger.error(f"Error fetching scheme data: {e}")
+            return "I apologize, but our scheme eligibility database is currently experiencing issues. I cannot verify your eligibility at this moment. Please try asking again later."
 
     @function_tool
     async def check_fraud_signals(self, context: RunContext, message_text: str):
@@ -128,6 +195,93 @@ class Assistant(Agent):
         if any(w in lowered for w in ["click", "link", "verify now"]):
             red_flags.append("Pushes a link/click action")
         return {"red_flags": red_flags, "likely_fraud": len(red_flags) > 0}
+
+    @function_tool
+    async def check_exchange_rate(
+        self,
+        context: RunContext,
+        base_currency: str = "USD",
+        target_currency: str = "INR"
+    ):
+        """Check the latest real-time currency exchange rate.
+
+        Args:
+            base_currency: The 3-letter currency code to convert from (e.g. USD, EUR, GBP). Defaults to USD.
+            target_currency: The 3-letter currency code to convert to (e.g. INR, EUR). Defaults to INR.
+        """
+        logger.info(f"Checking exchange rate from {base_currency} to {target_currency}")
+        import aiohttp
+        
+        url = f"https://api.frankfurter.app/latest?from={base_currency}&to={target_currency}"
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        rate = data["rates"].get(target_currency.upper())
+                        date = data.get("date", "today")
+                        return f"Data source: Frankfurter API as of {date}. The exchange rate is 1 {base_currency.upper()} = {rate} {target_currency.upper()}."
+                    else:
+                        return "I'm sorry, I couldn't retrieve the exchange rate right now because the financial API returned an error."
+        except Exception as e:
+            logger.error(f"Error fetching exchange rate: {e}")
+            return "I apologize, but our external financial API is currently experiencing issues. I cannot verify the exchange rate at this moment."
+
+    @function_tool
+    async def check_bank_interest_rate(
+        self,
+        context: RunContext,
+        bank_name: str
+    ):
+        """Check the latest interest rates for savings and fixed deposits (FD) at a specific Indian bank.
+
+        Args:
+            bank_name: The name of the bank (e.g. SBI, HDFC, ICICI, PNB, Axis).
+        """
+        logger.info(f"Checking interest rates for {bank_name}")
+        import asyncio
+        import os
+        
+        try:
+            # Simulate a network call to the bank's dataset
+            await asyncio.sleep(0.5)
+            
+            # Read from our local dataset
+            file_path = os.path.join(os.path.dirname(__file__), "bank_rates.json")
+            if not os.path.exists(file_path):
+                raise FileNotFoundError("Bank rates database file not found")
+                
+            with open(file_path, "r") as f:
+                data = json.load(f)
+                
+            last_updated = data.get("last_updated", "unknown date")
+            banks = data.get("banks", {})
+            
+            # Find closest bank match
+            bank_key = None
+            for key in banks.keys():
+                if key.lower() in bank_name.lower() or bank_name.lower() in key.lower() or key.lower() == bank_name.lower():
+                    bank_key = key
+                    break
+            
+            if not bank_key:
+                return f"Sorry, I couldn't find interest rate information for '{bank_name}' in our database. Data was last updated on {last_updated}."
+                
+            bank = banks[bank_key]
+            
+            return (
+                f"Data source: {data.get('source', 'System')} as of {last_updated}. "
+                f"Bank: {bank['name']}. "
+                f"Savings Account Rate: {bank['savings_rate']}. "
+                f"1-Year FD Rate: {bank['fd_rate_1_year']}. "
+                f"5-Year FD Rate: {bank['fd_rate_5_year']}. "
+                f"Senior Citizen Bonus: {bank['senior_citizen_bonus']}."
+            )
+            
+        except Exception as e:
+            logger.error(f"Error fetching bank rates: {e}")
+            return "I apologize, but our bank interest rates database is currently experiencing issues. Please try asking again later."
 
 server = AgentServer()
 

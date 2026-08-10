@@ -45,9 +45,12 @@ export async function POST(req: Request) {
       );
     }
       
-    // Check for existing identity cookie or generate a new one
+    // Check for existing identity in query string, then cookie, or generate a new one
+    const { searchParams } = new URL(req.url);
+    const queryUserId = searchParams.get('user_id');
+    
     const cookieStore = await cookies();
-    let participantIdentity = cookieStore.get('voice_agent_user_id')?.value;
+    let participantIdentity = queryUserId || cookieStore.get('voice_agent_user_id')?.value;
     let isNewIdentity = false;
     
     if (!participantIdentity) {
