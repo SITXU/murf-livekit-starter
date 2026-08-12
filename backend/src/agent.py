@@ -36,6 +36,7 @@ OBJECTIVES:
 4. Provide real-time currency exchange rates for users receiving remittances.
 5. Provide latest bank interest rates for savings and fixed deposits.
 6. Remember users across calls to provide personalized help.
+7. ESCALATE to a human agent when the caller reports a possible fraud that requires human intervention, or when they need a decision/action you cannot make.
 
 KNOWLEDGE: You know about Indian government financial schemes and common fraud tactics. Your knowledge stops at giving personal financial advice or confirming exact scheme approvals. Always rely on your tools for eligibility, fraud checks, exchange rates, and bank interest rates.
 Do not explain a scheme's eligibility rules from memory — always call check_scheme_eligibility.
@@ -48,6 +49,8 @@ GUARDRAILS:
 - NEVER promise scheme approval or guarantee loan sanctions.
 - HARD RULE: Before you save any information about the user, you MUST ask for their permission. Tell the caller you are going to remember this, and if they say no, do not save it.
 - If a user asks for personal financial advice, say: "I am a basic financial literacy assistant and cannot provide personalized financial advice. Please consult your bank or a financial advisor for that."
+- ESCALATION RULE: Before calling create_escalation, you MUST tell the caller what information you want to send and ask for their permission. If they say no, do not create the request. Do not send passwords, OTPs, PINs, or account numbers. After creating the request, give them the reference ID and explain what will happen next (e.g. a human will follow up within 24 hours).
+
 STYLE: Use short sentences suitable for spoken conversation. Keep a steady, clear pace. Keep responses concise, no jargon, no complex formatting or emojis. If there is silence, politely ask "Are you still there? How can I help you further?"
 
 The current caller's user_id is: '{user_id}'.
@@ -282,6 +285,66 @@ class Assistant(Agent):
         except Exception as e:
             logger.error(f"Error fetching bank rates: {e}")
             return "I apologize, but our bank interest rates database is currently experiencing issues. Please try asking again later."
+
+    @function_tool
+    async def create_escalation(
+        self,
+        context: RunContext,
+        who_needs_help: str,
+        what_happened: str,
+        what_checked: str,
+        urgency: str,
+        language_preference: str,
+        follow_up_method: str
+    ):
+        """Create a request for a human agent to help the caller. 
+        MUST ask the caller for permission and inform them what information will be sent before calling this.
+
+        Args:
+            who_needs_help: Name or ID of the caller.
+            what_happened: Brief summary of the issue (e.g., suspected fraud, needs a decision you cannot make).
+            what_checked: What you already checked or analyzed.
+            urgency: How urgent is it (e.g., Low, Medium, High).
+            language_preference: Caller's language.
+            follow_up_method: How the caller wants to be contacted.
+        """
+        logger.info(f"Escalating issue for: {who_needs_help}")
+        import uuid
+        import json
+        import os
+        from datetime import datetime
+
+        escalation_id = "REQ-" + str(uuid.uuid4())[:8].upper()
+        
+        escalation_data = {
+            "id": escalation_id,
+            "timestamp": datetime.now().isoformat(),
+            "who_needs_help": who_needs_help,
+            "what_happened": what_happened,
+            "what_checked": what_checked,
+            "urgency": urgency,
+            "language": language_preference,
+            "follow_up_method": follow_up_method,
+            "status": "OPEN"
+        }
+
+        # Save to local JSON database
+        file_path = os.path.join(os.path.dirname(__file__), "escalations.json")
+        try:
+            escalations = []
+            if os.path.exists(file_path):
+                with open(file_path, "r") as f:
+                    escalations = json.load(f)
+            
+            escalations.append(escalation_data)
+            
+            with open(file_path, "w") as f:
+                json.dump(escalations, f, indent=4)
+        except Exception as e:
+            logger.error(f"Failed to save escalation: {e}")
+            return "Failed to create the request due to a system error."
+
+        return f"Request created successfully. Reference ID is {escalation_id}. Let the user know the ID and that a human will follow up."
 
 server = AgentServer()
 

@@ -1,0 +1,13 @@
+[
+    {
+        "id": "REQ-84AB382D",
+        "timestamp": "2026-08-12T23:26:48.478423",
+        "who_needs_help": "Simran",
+        "what_happened": "accidentally clicked link and lost money",
+        "what_checked": "suspicious text message with OTP request and link",
+        "urgency": "High",
+        "language": "en",
+        "follow_up_method": "phone",
+        "status": "OPEN"
+    }
+]
