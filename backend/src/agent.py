@@ -18,7 +18,7 @@ from livekit.agents import (
 from livekit.plugins import murf, silero, deepgram, noise_cancellation, groq
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 import json
-from db import init_db, get_user, save_user
+from db import init_db, get_user, save_user, save_call
 
 logger = logging.getLogger("agent")
 
@@ -63,6 +63,7 @@ At the start of the call, ALWAYS call lookup_caller with this user_id to check i
 class Assistant(Agent):
     def __init__(self, user_id: str) -> None:
         super().__init__(instructions=get_system_prompt(user_id))
+        self.call_successful = False
 
     @function_tool
     async def lookup_caller(self, context: RunContext, user_id: str):
@@ -170,6 +171,7 @@ class Assistant(Agent):
                 
             docs = ", ".join(scheme["documents_required"])
             
+            self.call_successful = True
             return (
                 f"Data source: {data.get('source', 'System')} as of {last_updated}. "
                 f"Result: {status}. "
@@ -197,6 +199,8 @@ class Assistant(Agent):
             red_flags.append("Creates false urgency")
         if any(w in lowered for w in ["click", "link", "verify now"]):
             red_flags.append("Pushes a link/click action")
+        
+        self.call_successful = True
         return {"red_flags": red_flags, "likely_fraud": len(red_flags) > 0}
 
     @function_tool
@@ -224,6 +228,7 @@ class Assistant(Agent):
                         data = await response.json()
                         rate = data["rates"].get(target_currency.upper())
                         date = data.get("date", "today")
+                        self.call_successful = True
                         return f"Data source: Frankfurter API as of {date}. The exchange rate is 1 {base_currency.upper()} = {rate} {target_currency.upper()}."
                     else:
                         return "I'm sorry, I couldn't retrieve the exchange rate right now because the financial API returned an error."
@@ -273,6 +278,7 @@ class Assistant(Agent):
                 
             bank = banks[bank_key]
             
+            self.call_successful = True
             return (
                 f"Data source: {data.get('source', 'System')} as of {last_updated}. "
                 f"Bank: {bank['name']}. "
@@ -344,6 +350,7 @@ class Assistant(Agent):
             logger.error(f"Failed to save escalation: {e}")
             return "Failed to create the request due to a system error."
 
+        self.call_successful = True
         return f"Request created successfully. Reference ID is {escalation_id}. Let the user know the ID and that a human will follow up."
 
 server = AgentServer()
@@ -418,8 +425,16 @@ async def my_agent(ctx: JobContext):
     # await avatar.start(session, room=ctx.room)
 
     # Start the session, which initializes the voice pipeline and warms up the models
+    assistant = Assistant(user_id=user_id)
+    
+    @ctx.room.on("disconnected")
+    def on_disconnected(*args, **kwargs):
+        status = "SUCCESS" if assistant.call_successful else "FAILED"
+        logger.info(f"Room disconnected. Logging call {ctx.room.name} as {status}")
+        save_call(ctx.room.name, user_id, status)
+
     await session.start(
-        agent=Assistant(user_id=user_id),
+        agent=assistant,
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(

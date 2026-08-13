@@ -18,9 +18,16 @@ def init_db():
             last_interaction TEXT
         )
     ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS calls (
+            call_id TEXT PRIMARY KEY,
+            user_id TEXT,
+            status TEXT,
+            timestamp TEXT
+        )
+    ''')
     conn.commit()
     conn.close()
-
 def get_user(user_id: str):
     """Fetch user details by their ID."""
     conn = sqlite3.connect(DB_PATH)
@@ -58,3 +65,44 @@ def save_user(user_id: str, name: str, language_preference: str, facts: dict):
     
     conn.commit()
     conn.close()
+
+def save_call(call_id: str, user_id: str, status: str):
+    """Save the outcome of a call."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    timestamp = datetime.now().isoformat()
+    
+    c.execute('''
+        INSERT INTO calls (call_id, user_id, status, timestamp)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(call_id) DO UPDATE SET
+            status=excluded.status
+    ''', (call_id, user_id, status, timestamp))
+    
+    conn.commit()
+    conn.close()
+
+def get_call_stats():
+    """Get statistics for the calls dashboard."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    try:
+        c.execute('SELECT COUNT(*) FROM calls')
+        total_calls = c.fetchone()[0]
+        
+        c.execute('SELECT COUNT(*) FROM calls WHERE status = "SUCCESS"')
+        successful_calls = c.fetchone()[0]
+        
+        c.execute('SELECT COUNT(*) FROM calls WHERE status = "FAILED"')
+        failed_calls = c.fetchone()[0]
+    except sqlite3.OperationalError:
+        total_calls, successful_calls, failed_calls = 0, 0, 0
+    
+    conn.close()
+    
+    return {
+        "total": total_calls,
+        "successful": successful_calls,
+        "failed": failed_calls
+    }

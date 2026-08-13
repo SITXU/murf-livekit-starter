@@ -1,7 +1,17 @@
 import json
 import os
+import sys
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 import urllib.parse
+
+# Add src to path so we can import db
+sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
+try:
+    from db import get_call_stats
+except ImportError:
+    # Fallback if db not found
+    def get_call_stats():
+        return {"total": 0, "successful": 0, "failed": 0}
 
 class DashboardHandler(SimpleHTTPRequestHandler):
     def get_file_path(self):
@@ -13,6 +23,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-type", "text/html")
             self.end_headers()
             
+            # Fetch call stats
+            stats = get_call_stats()
+            
             file_path = self.get_file_path()
             escalations = []
             if os.path.exists(file_path):
@@ -22,28 +35,53 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 except Exception:
                     pass
                     
-            html = """
+            html = f"""
             <html>
             <head>
                 <title>Human Help Requests Dashboard</title>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 2rem; background: #f4f4f5; color: #333; }
-                    .header { display: flex; justify-content: space-between; align-items: center; }
-                    h1 { color: #111; }
-                    .card { background: white; padding: 1.5rem; margin-bottom: 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); line-height: 1.5; }
-                    .high { border-left: 5px solid #ef4444; }
-                    .medium { border-left: 5px solid #f97316; }
-                    .low { border-left: 5px solid #22c55e; }
-                    .open { color: #d97706; font-weight: bold; background: #fef3c7; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
-                    p { margin: 0.5rem 0; }
-                    small { color: #666; }
-                    .btn-clear { background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 1rem; }
-                    .btn-clear:hover { background: #dc2626; }
+                    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 2rem; background: #f4f4f5; color: #333; }}
+                    .header {{ display: flex; justify-content: space-between; align-items: center; }}
+                    h1 {{ color: #111; }}
+                    .stats-container {{ display: flex; gap: 1rem; margin-bottom: 2rem; }}
+                    .stat-card {{ background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex: 1; text-align: center; }}
+                    .stat-card h2 {{ margin: 0; font-size: 2.5rem; color: #2563eb; }}
+                    .stat-card.success h2 {{ color: #16a34a; }}
+                    .stat-card.failed h2 {{ color: #dc2626; }}
+                    .stat-card p {{ margin: 0.5rem 0 0; color: #666; font-weight: bold; text-transform: uppercase; font-size: 0.9rem; }}
+                    .card {{ background: white; padding: 1.5rem; margin-bottom: 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); line-height: 1.5; }}
+                    .high {{ border-left: 5px solid #ef4444; }}
+                    .medium {{ border-left: 5px solid #f97316; }}
+                    .low {{ border-left: 5px solid #22c55e; }}
+                    .open {{ color: #d97706; font-weight: bold; background: #fef3c7; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }}
+                    p {{ margin: 0.5rem 0; }}
+                    small {{ color: #666; }}
+                    .btn-clear {{ background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 1rem; }}
+                    .btn-clear:hover {{ background: #dc2626; }}
                 </style>
             </head>
             <body>
                 <div class="header">
-                    <h1>Open Escalations</h1>
+                    <h1>Call Analytics Dashboard</h1>
+                </div>
+                
+                <div class="stats-container">
+                    <div class="stat-card">
+                        <h2>{stats['total']}</h2>
+                        <p>Total Calls</p>
+                    </div>
+                    <div class="stat-card success">
+                        <h2>{stats['successful']}</h2>
+                        <p>Successful Calls</p>
+                    </div>
+                    <div class="stat-card failed">
+                        <h2>{stats['failed']}</h2>
+                        <p>Failed Calls</p>
+                    </div>
+                </div>
+
+                <div class="header">
+                    <h2>Open Escalations</h2>
                     <form method="POST" action="/clear" style="margin: 0;">
                         <button type="submit" class="btn-clear">Clear All Requests</button>
                     </form>
