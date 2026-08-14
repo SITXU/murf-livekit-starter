@@ -6,6 +6,7 @@ from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    ChatContext,
     JobContext,
     JobProcess,
     cli,
@@ -30,16 +31,14 @@ init_db()
 def get_system_prompt(user_id: str):
     return f"""IDENTITY: You are 'Anisha', a financial literacy voice assistant helping Indian users understand government schemes, banking basics, and fraud awareness. You work for a public awareness campaign.
 OBJECTIVES: 
-1. Help users understand if they are eligible for government schemes.
-2. Educate users about basic banking services.
 3. Protect users by analyzing suspicious messages for fraud.
 4. Provide real-time currency exchange rates for users receiving remittances.
 5. Provide latest bank interest rates for savings and fixed deposits.
 6. Remember users across calls to provide personalized help.
 7. ESCALATE to a human agent when the caller reports a possible fraud that requires human intervention, or when they need a decision/action you cannot make.
+8. For any questions regarding government schemes or checking scheme eligibility, ALWAYS transfer the caller to the Government Scheme Specialist using the transfer_to_scheme_specialist tool.
 
-KNOWLEDGE: You know about Indian government financial schemes and common fraud tactics. Your knowledge stops at giving personal financial advice or confirming exact scheme approvals. Always rely on your tools for eligibility, fraud checks, exchange rates, and bank interest rates.
-Do not explain a scheme's eligibility rules from memory — always call check_scheme_eligibility.
+KNOWLEDGE: You know about Indian banking basics and common fraud tactics. Your knowledge stops at giving personal financial advice or confirming exact scheme approvals. Always rely on your tools for fraud checks, exchange rates, and bank interest rates.
 Do not judge a suspicious message as safe or a scam from memory — always call check_fraud_signals.
 Do not invent exchange rates — always call check_exchange_rate.
 Do not invent bank interest rates — always call check_bank_interest_rate.
@@ -60,41 +59,33 @@ At the start of the call, ALWAYS call lookup_caller with this user_id to check i
 - During the call, if you learn their name, preferred language, or facts about their eligibility/interests, ASK for permission to save this data. If they agree, call save_caller_info.
 """
 
-class Assistant(Agent):
-    def __init__(self, user_id: str) -> None:
-        super().__init__(instructions=get_system_prompt(user_id))
+SCHEME_SPECIALIST_PROMPT = """IDENTITY: You are a Government Scheme Specialist assisting Indian users.
+OBJECTIVES:
+1. Help users understand if they are eligible for government financial schemes (like PM-KISAN, PMJDY, Mudra, PMSBY, PMJJBY).
+2. Do not explain a scheme's eligibility rules from memory — always call check_scheme_eligibility.
+3. Guide users on the required documents for the schemes.
+4. Your responses are concise and without complex formatting, emojis, or symbols.
+"""
+
+class SchemeSpecialist(Agent):
+    def __init__(self, chat_ctx: ChatContext | None = None) -> None:
+        super().__init__(
+            instructions=SCHEME_SPECIALIST_PROMPT,
+            chat_ctx=chat_ctx,
+            tts=murf.TTS(
+                voice="Samar",
+                locale="en-IN",
+                style="Conversation",
+                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
+                text_pacing=True,
+            ),
+        )
         self.call_successful = False
 
-    @function_tool
-    async def lookup_caller(self, context: RunContext, user_id: str):
-        """Look up information about a returning caller.
-        
-        Args:
-            user_id: The unique ID or phone number of the caller.
-        """
-        logger.info(f"Looking up caller: {user_id}")
-        user = get_user(user_id)
-        if user:
-            return f"Found caller: {json.dumps(user)}"
-        return "Caller not found. This is a new user."
-
-    @function_tool
-    async def save_caller_info(self, context: RunContext, user_id: str, name: str, language_preference: str, facts: str):
-        """Save information about a caller to remember them for next time.
-        
-        Args:
-            user_id: The unique ID or phone number of the caller.
-            name: The caller's name.
-            language_preference: The caller's preferred language.
-            facts: A JSON string containing key facts to remember (e.g., {"schemes_checked": "PM-KISAN"}).
-        """
-        logger.info(f"Saving info for caller: {user_id}")
-        try:
-            facts_dict = json.loads(facts)
-        except:
-            facts_dict = {"notes": facts}
-        save_user(user_id, name, language_preference, facts_dict)
-        return "Information saved successfully."
+    async def on_enter(self) -> None:
+        await self.session.generate_reply(
+            instructions="Introduce yourself as the government scheme specialist and ask the user which scheme they would like to know about or check eligibility for."
+        )
 
     @function_tool
     async def check_scheme_eligibility(
@@ -182,6 +173,52 @@ class Assistant(Agent):
         except Exception as e:
             logger.error(f"Error fetching scheme data: {e}")
             return "I apologize, but our scheme eligibility database is currently experiencing issues. I cannot verify your eligibility at this moment. Please try asking again later."
+
+class Assistant(Agent):
+    def __init__(self, user_id: str, chat_ctx: ChatContext | None = None) -> None:
+        super().__init__(instructions=get_system_prompt(user_id), chat_ctx=chat_ctx)
+        self.call_successful = False
+        self.user_id = user_id
+
+    @function_tool
+    async def transfer_to_scheme_specialist(self, context: RunContext) -> tuple[Agent, str]:
+        """Transfer the user to the government scheme specialist for queries about scheme eligibility or scheme details."""
+        logger.info("Transferring to Scheme Specialist")
+        specialist = SchemeSpecialist(
+            chat_ctx=self.chat_ctx.copy(exclude_instructions=True)
+        )
+        return specialist, "I will connect you to our government scheme specialist."
+
+    @function_tool
+    async def lookup_caller(self, context: RunContext, user_id: str):
+        """Look up information about a returning caller.
+        
+        Args:
+            user_id: The unique ID or phone number of the caller.
+        """
+        logger.info(f"Looking up caller: {user_id}")
+        user = get_user(user_id)
+        if user:
+            return f"Found caller: {json.dumps(user)}"
+        return "Caller not found. This is a new user."
+
+    @function_tool
+    async def save_caller_info(self, context: RunContext, user_id: str, name: str, language_preference: str, facts: str):
+        """Save information about a caller to remember them for next time.
+        
+        Args:
+            user_id: The unique ID or phone number of the caller.
+            name: The caller's name.
+            language_preference: The caller's preferred language.
+            facts: A JSON string containing key facts to remember (e.g., {"schemes_checked": "PM-KISAN"}).
+        """
+        logger.info(f"Saving info for caller: {user_id}")
+        try:
+            facts_dict = json.loads(facts)
+        except:
+            facts_dict = {"notes": facts}
+        save_user(user_id, name, language_preference, facts_dict)
+        return "Information saved successfully."
 
     @function_tool
     async def check_fraud_signals(self, context: RunContext, message_text: str):
